@@ -40,6 +40,15 @@ async function main() {
   for (let i = 0; i < img32.length; i++) {
     img32[i] = (img32[i] - mn) * scale32
   }
+  //sanity check: report that image now normalized 0..1
+  mx = img32[0]
+  mn = mx
+  for (let i = 0; i < img32.length; i++) {
+    mx = Math.max(mx, img32[i])
+    mn = Math.min(mn, img32[i])
+  }
+  console.log(`Normalized image intensity is ${mn}..${mx}`)
+
   let feedsInfo = [];
   function getFeedInfo(feed, type, data, dims) {
     const warmupTimes = 0;
@@ -103,12 +112,11 @@ async function main() {
   // FIXME: Do we want to use a real image for inference?
   const imgData = img32;
   const expectedLength = shape.reduce((a, b) => a * b);
-  // FIXME: Do we need want this?
-  if (imgData.length !== expectedLength) {
-    throw new Error(`imgData length (${imgData.length}) does not match expected tensor length (${expectedLength})`);
+  if (img32.length !== expectedLength) {
+    throw new Error(`img32 length (${img32.length}) does not match expected tensor length (${expectedLength})`);
   }
 
-  const temp = getFeedInfo("input.1", "float32", imgData, shape);
+  const temp = getFeedInfo("input.1", "float32", img32, shape);
   let dataA = temp[0].get('input.1')[1];
   const tensorA = new ort.Tensor('float32', dataA, shape);
 
@@ -125,13 +133,16 @@ async function main() {
   }
   const outData = new Float32Array(vox)
   for (let i = 0; i < vox; i++) {
-    outData[i] = Math.max(Math.max(aiVox[i],aiVox[i+vox]),aiVox[i+vox+vox])
+    /*let mx = 2
+    if ((aiVox[i+vox] > aiVox[i]) && (aiVox[i+vox] > aiVox[i+vox+vox]))
+        mx = 1
+    else if ((aiVox[i] > aiVox[i+vox]) && (aiVox[i] > aiVox[i+vox+vox]))
+        mx = 0*/
+    outData[i] = aiVox[i]
   }
   const newImg = nv1.cloneVolume(0);
   newImg.img = outData
-  newImg.cal_min = 3
-  newImg.cal_max = 4
-  newImg.hdr.datatypeCode = 16
+  newImg.hdr.datatypeCode = 16 //float32
   newImg.hdr.dims[4] = 1
   newImg.trustCalMinMax = false
   console.log(newImg)

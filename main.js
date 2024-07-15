@@ -20,15 +20,26 @@ async function main() {
   nv1.attachToCanvas(gl1)
   await nv1.loadVolumes([{ url: './t1_crop.nii.gz' }])
   // FIXME: Do we want to conform?
-  const conformed = await nv1.conform(
+  /*const conformed = await nv1.conform(
     nv1.volumes[0],
     false,
     true,
     true
   )
   nv1.removeVolume(nv1.volumes[0])
-  nv1.addVolume(conformed)
+  nv1.addVolume(conformed)*/
 
+  let img32 = new Float32Array(nv1.volumes[0].img)
+  let mx = img32[0]
+  let mn = mx
+  for (let i = 0; i < img32.length; i++) {
+    mx = Math.max(mx, img32[i])
+    mn = Math.min(mn, img32[i])
+  }
+  let scale32 = 1 / (mx - mn)
+  for (let i = 0; i < img32.length; i++) {
+    img32[i] = (img32[i] - mn) * scale32
+  }
   let feedsInfo = [];
   function getFeedInfo(feed, type, data, dims) {
     const warmupTimes = 0;
@@ -90,7 +101,7 @@ async function main() {
   const session = await ort.InferenceSession.create('./model_5_channels.onnx', option);
   const shape = [1, 1, 256, 256, 256];
   // FIXME: Do we want to use a real image for inference?
-  const imgData = nv1.volumes[0].img;
+  const imgData = img32;
   const expectedLength = shape.reduce((a, b) => a * b);
   // FIXME: Do we need want this?
   if (imgData.length !== expectedLength) {
@@ -110,11 +121,16 @@ async function main() {
   // FIXME: is this really the output data? It doesn't make sense when rendered, 
   // but then again, maybe the input was wrong?
   const outData = results[39].data
+  console.log(results)
   const newImg = nv1.cloneVolume(0);
   newImg.img = outData
+  newImg.cal_min = 3
+  newImg.cal_max = 4
+  newImg.trustCalMinMax = false
+  console.log(newImg)
   // Add the output to niivue
   nv1.addVolume(newImg)
-  nv1.setColormap(newImg.id, "red")
+  nv1.setColormap(newImg.id, "actc")
   nv1.setOpacity(1, 0.5)
 }
 

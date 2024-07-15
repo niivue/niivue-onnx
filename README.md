@@ -8,8 +8,15 @@ You can serve a hot-reloadable web page that allows you to interactively modify 
 
 ```bash
 git git@github.com:neurolabusc/niivue-onnx.git
-cd niivue-neglect
+cd niivue-onnx
 npm install
 npm run dev
+```
+
+#### to build and serve the built version
+
+```bash
+npm run build
+npx http-server dist/
 ```
 

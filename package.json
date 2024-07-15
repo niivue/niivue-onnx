@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && npm run copyMJS && npm run copyWASM",
+    "copyMJS": "cp ./node_modules/onnxruntime-web/dist/*.mjs ./dist/assets/",
+    "copyWASM": "cp ./node_modules/onnxruntime-web/dist/*.wasm ./dist/assets/",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@niivue/niivue":"^0.43.3",
-    "onnxruntime-web": "1.19.0-dev.20240713-281ed8c12d"
+    "@niivue/niivue": "^0.43.3",
+    "onnxruntime-web": "^1.19.0-dev.20240713-281ed8c12d"
   },
   "devDependencies": {
     "vite": "^5.2.0"

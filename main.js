@@ -114,17 +114,19 @@ async function main() {
 
   const feeds = { "input.1": tensorA };
   // feed inputs and run
-  console.log("before run");
   const results = await session.run(feeds);
   console.log(results);
-  console.log("after run")
-  // FIXME: is this really the output data? It doesn't make sense when rendered, 
-  // but then again, maybe the input was wrong?
+  const aiVox = results[39].data
   const outDims = results[39].dims
   const vols = outDims[1]
-  const vol = 3 //choose volume to view 1-3
-  const vox = outDims[2] * outDims[3] * outDims[4] 
-  const outData = new Float32Array(results[39].data.slice(vox*(vol - 1), vox*vol))
+  const vox = outDims[2] * outDims[3] * outDims[4]
+  if ((img32.length != vox) || (vols != 3) || (aiVox.length != (vols * vox))) {
+    console.log('Fatal error')
+  }
+  const outData = new Float32Array(vox)
+  for (let i = 0; i < vox; i++) {
+    outData[i] = Math.max(Math.max(aiVox[i],aiVox[i+vox]),aiVox[i+vox+vox])
+  }
   const newImg = nv1.cloneVolume(0);
   newImg.img = outData
   newImg.cal_min = 3

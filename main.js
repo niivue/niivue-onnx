@@ -120,12 +120,17 @@ async function main() {
   console.log("after run")
   // FIXME: is this really the output data? It doesn't make sense when rendered, 
   // but then again, maybe the input was wrong?
-  const outData = results[39].data
-  console.log(results)
+  const outDims = results[39].dims
+  const vols = outDims[1]
+  const vol = 3 //choose volume to view 1-3
+  const vox = outDims[2] * outDims[3] * outDims[4] 
+  const outData = new Float32Array(results[39].data.slice(vox*(vol - 1), vox*vol))
   const newImg = nv1.cloneVolume(0);
   newImg.img = outData
   newImg.cal_min = 3
   newImg.cal_max = 4
+  newImg.hdr.datatypeCode = 16
+  newImg.hdr.dims[4] = 1
   newImg.trustCalMinMax = false
   console.log(newImg)
   // Add the output to niivue

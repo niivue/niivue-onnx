@@ -80,10 +80,9 @@ async function main() {
           mxVal = val
         }
       }
-      // Next line incorrect!
-      argMaxImg[vox] = mxVal
       // Next line should be correct: brightest volume
       // argMaxImg[vox] = mxVol
+      argMaxImg[vox] = classImg[vox + (nvox+nvox)]
     }
     //
     const newImg = nv1.cloneVolume(0)
@@ -91,7 +90,6 @@ async function main() {
     newImg.hdr.datatypeCode = 16 // = float32
     newImg.hdr.dims[4] = 1
     newImg.trustCalMinMax = false
-    console.log(newImg)
     // Add the output to niivue
     nv1.addVolume(newImg)
     nv1.setColormap(newImg.id, "actc")

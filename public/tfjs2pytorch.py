@@ -222,7 +222,7 @@ img = np.asanyarray(img1.dataobj)
 input1 = normalize(torch.from_numpy(img).float().unsqueeze(0))
 # Convert the tensor to a NumPy array
 input1_np = input1.squeeze().numpy()
-nifti_img = nib.Nifti1Image(input1_np, np.eye(4)) 
+nifti_img = nib.Nifti1Image(input1_np, img1.affine) 
 nib.save(nifti_img, 'norm.nii')
 
 with torch.no_grad():
@@ -235,10 +235,10 @@ del input_
 # Convert the tensor to a NumPy array
 input1_np = input1.squeeze().numpy()
 input1_reordered = np.transpose(input1_np, (1, 2, 3, 0))  # Reorder to [x, y, z, v]
-nifti_img = nib.Nifti1Image(input1_reordered, np.eye(4))
+nifti_img = nib.Nifti1Image(input1_reordered, img1.affine)
 nib.save(nifti_img, 'result4D.nii')
 
 result = np.squeeze(torch.argmax(input1, 0).cpu().numpy()).astype(np.uint8)
-nifti_img = nib.Nifti1Image(result, np.eye(4))
+nifti_img = nib.Nifti1Image(result, img1.affine)
 nib.save(nifti_img, 'resultArgmax.nii')
 plot_tensor_slices(result, 0)

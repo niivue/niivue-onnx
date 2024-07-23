@@ -2,6 +2,31 @@ import { Niivue } from '@niivue/niivue'
 // IMPORTANT: we need to import this specific file. 
 import * as ort from "./node_modules/onnxruntime-web/dist/ort.all.mjs"
 async function main() {
+  clipCheck.onchange = function () {
+    if (clipCheck.checked) {
+      nv1.setClipPlane([0, 0, 90])
+    } else {
+      nv1.setClipPlane([2, 0, 90])
+    }
+  }
+  opacitySlider0.oninput = function () {
+    nv1.setOpacity(0, opacitySlider0.value / 255)
+    nv1.updateGLVolume()
+  }
+  opacitySlider1.oninput = function () {
+    nv1.setOpacity(1, opacitySlider1.value / 255)
+  }
+  function doLoadImage() {
+    opacitySlider0.oninput()
+  }
+  async function fetchJSON(fnm) {
+    const response = await fetch(fnm)
+    const js = await response.json()
+    return js
+  }
+  saveImgBtn.onclick = function () {
+    nv1.volumes[1].saveToDisk('Custom.nii')
+  }
   async function ensureConformed() {
     const nii = nv1.volumes[0]
     let isConformed = nii.dims[1] === 256 && nii.dims[2] === 256 && nii.dims[3] === 256
@@ -25,6 +50,7 @@ async function main() {
       window.alert('Please open a voxel-based image')
       return
     }
+    loadingCircle.classList.remove('hidden')
     await closeAllOverlays()
     await ensureConformed()
     let img32 = new Float32Array(nv1.volumes[0].img)
@@ -47,9 +73,9 @@ async function main() {
           name: 'webgpu',
         },
       ],
-      graphOptimizationLevel: 'extended',
+      graphOptimizationLevel: 'disabled',
       optimizedModelFilepath: 'opt.onnx'
-    }
+    } // n.b. in future graphOptimizationLevel extended
     const session = await ort.InferenceSession.create('./model.onnx', option)
     const shape = [1, 1, 256, 256, 256]
     const nvox = shape.reduce((a, b) => a * b)
@@ -66,34 +92,32 @@ async function main() {
     if ((nvol < 2) || (classImg.length != (nvol * nvox))) {
       console.log('Fatal error')
     }
-    console.log(`${nvol} volumes each with ${nvox} voxels`)
     // argmax should identify correct class for each voxel
     //  TODO: ONNX not JavaScript https://onnx.ai/onnx/operators/onnx__ArgMax.html
     const argMaxImg = new Float32Array(nvox)
     for (let vox = 0; vox < nvox; vox++) {
       let mxVal = classImg[vox]
       let mxVol = 0
-      for (let vol = 1; vol < nvol; vol++) {
+      for (let vol = 1; vol <= nvol; vol++) {
         const val = classImg[vox + (vol * nvox)]
         if (val > mxVal) {
           mxVol = vol
           mxVal = val
         }
       }
-      // Next line should be correct: brightest volume
-      // argMaxImg[vox] = mxVol
-      argMaxImg[vox] = classImg[vox + (nvox+nvox)]
+      argMaxImg[vox] = mxVol
     }
-    //
-    const newImg = nv1.cloneVolume(0)
-    newImg.img = argMaxImg
-    newImg.hdr.datatypeCode = 16 // = float32
-    newImg.hdr.dims[4] = 1
-    newImg.trustCalMinMax = false
+    const segmentImg = nv1.cloneVolume(0)
+    segmentImg.img = argMaxImg
+    segmentImg.hdr.datatypeCode = 16 // = float32
+    segmentImg.hdr.dims[4] = 1
+    segmentImg.trustCalMinMax = false
     // Add the output to niivue
-    nv1.addVolume(newImg)
-    nv1.setColormap(newImg.id, "actc")
-    nv1.setOpacity(1, 0.5)
+    const cmap = await fetchJSON('./colormap3.json')
+    segmentImg.setColormapLabel(cmap)
+    segmentImg.opacity = opacitySlider1.value / 255
+    await nv1.addVolume(segmentImg)
+    loadingCircle.classList.add('hidden')
   }
   function handleLocationChange(data) {
     document.getElementById("intensity").innerHTML = data.string
@@ -104,6 +128,11 @@ async function main() {
   }
   const nv1 = new Niivue(defaults)
   nv1.attachToCanvas(gl1)
+  nv1.opts.multiplanarForceRender = true
+  nv1.opts.yoke3Dto2DZoom = true
+  nv1.opts.crosshairGap = 11
+  nv1.setInterpolation(true)
+  nv1.onImageLoaded = doLoadImage
   await nv1.loadVolumes([{ url: './t1_crop.nii.gz' }])
   segmentBtn.onclick()
 }

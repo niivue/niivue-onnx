@@ -1,7 +1,104 @@
-import { Niivue } from '@niivue/niivue'
+import { Niivue, NVMeshUtilities } from '@niivue/niivue'
 // IMPORTANT: we need to import this specific file. 
 import * as ort from "./node_modules/onnxruntime-web/dist/ort.all.mjs"
+
 async function main() {
+  function removeExtension(filename) {
+    if (filename.endsWith('.gz')) {
+      filename = filename.slice(0, -3)
+    }
+    let lastDotIndex = filename.lastIndexOf('.')
+    if (lastDotIndex !== -1) {
+      filename = filename.slice(0, lastDotIndex)
+    }
+    return filename
+  }
+  const Nii2meshWorker = await new Worker('./nii2meshWorker.js')
+  let startTime = Date.now()
+  function meshStatus(isTimed = true) {
+    let str = `Mesh has ${nv1.meshes[0].pts.length / 3} vertices and ${nv1.meshes[0].tris.length / 3} triangles`
+    if (isTimed)
+      str += ` ${Date.now() - startTime}ms`
+    document.getElementById('intensity').innerHTML = str
+  }
+  async function loadMz3(meshBuffer) {
+    if (nv1.meshes.length > 0) {
+      nv1.removeMesh(nv1.meshes[0])
+    }
+    await nv1.loadFromArrayBuffer(meshBuffer, 'test.mz3')
+    // TODO: we should not have to reverse faces
+    //  Check determinant for conformed image
+    nv1.reverseFaces(0)
+    loadingCircle.classList.add('hidden')
+    meshStatus(true)
+  }
+  Nii2meshWorker.onmessage = async function (e) {
+    if (e.data.blob instanceof Blob) {
+        var reader = new FileReader()
+        reader.onload = () => {
+            loadMz3(reader.result)
+        }
+        reader.readAsArrayBuffer(e.data.blob)
+    }
+  }
+  applyBtn.onclick = async function () {
+    if (nv1.volumes.length < 2) {
+      return
+    } 
+    startTime = Date.now()
+    loadingCircle.classList.remove('hidden')
+    const niiBuffer = await nv1.saveImage({volumeByIndex: 1}).buffer
+    let nii = await new Blob([niiBuffer], {
+      type: 'application/octet-stream'
+    })
+    let inName = removeExtension(nv1.volumes[0].name) + '.nii'
+    let fileNii = await new File([nii], inName)
+    let outName = removeExtension(nv1.volumes[0].name) + '.mz3'
+    const isoValue = Number(isoNumber.value)
+    const largestCheckValue = largestCheck.checked
+    const bubbleCheckValue = bubbleCheck.checked
+    const shrinkValue = Math.min(Math.max(Number(shrinkPct.value) / 100, 0.01), 1)
+    const smoothValue = smoothSlide.value
+    Nii2meshWorker.postMessage({
+        blob: fileNii,
+        percentage: shrinkValue,
+        simplify_name: outName,
+        isoValue: isoValue,
+        onlyLargest: largestCheckValue,
+        fillBubbles: bubbleCheckValue,
+        postSmooth: smoothValue
+    })
+  }
+  createMeshBtn.onclick = function () {
+    if (nv1.volumes.length < 2) {
+      window.alert("Segmented image not loaded. Press the 'Segment' button.")
+    } else {
+      remeshDialog.show()
+    }
+  }
+  meshCheck.onchange = function () {
+    nv1.setMeshProperty(nv1.meshes[0].id, 'visible', this.checked)
+  }
+  saveMeshBtn.onclick = function () {
+    if (nv1.meshes.length < 1) {
+      window.alert("No mesh open for saving. Use 'Create Mesh'.")
+    } else {
+      saveDialog.show()
+    }
+  }
+  applySaveBtn.onclick = function () {
+    if (nv1.meshes.length < 1) {
+      return
+    }
+    let format = 'obj'
+    if (formatSelect.selectedIndex === 0) {
+      format = 'mz3'
+    }
+    if (formatSelect.selectedIndex === 2) {
+      format = 'stl'
+    }
+    NVMeshUtilities.saveMesh(nv1.meshes[0].pts, nv1.meshes[0].tris, `mesh.${format}`, true)
+  }
   clipCheck.onchange = function () {
     if (clipCheck.checked) {
       nv1.setClipPlane([0, 0, 90])
@@ -50,6 +147,7 @@ async function main() {
       window.alert('Please open a voxel-based image')
       return
     }
+    startTime = Date.now()
     loadingCircle.classList.remove('hidden')
     await closeAllOverlays()
     await ensureConformed()
@@ -118,6 +216,7 @@ async function main() {
     segmentImg.opacity = opacitySlider1.value / 255
     await nv1.addVolume(segmentImg)
     loadingCircle.classList.add('hidden')
+    document.getElementById('intensity').innerHTML = ` ${Date.now() - startTime}ms`
   }
   function handleLocationChange(data) {
     document.getElementById("intensity").innerHTML = data.string
